@@ -1,7 +1,9 @@
 # Generic Jar Infra CDK Java project
 
-Project using CDK development with Java.
-Automation AWS Infrastructure As a Code (IaaC), for the particular scenario:
+Project using CDK development with Java.<br>
+Automation AWS Infrastructure As a Code (IaaC), for the particular scenario: we want to deploy a Spring Boot jar, supplying a previously filled database and authorization to access S3 buckets. 
+
+## Stacks
 * VPS: integration of the AWS objects;
 * EC2: hosting a Java 17 executable jar using Spring Boot on the port 5000;
     * Amazon Linux 2023;
@@ -21,6 +23,14 @@ Automation AWS Infrastructure As a Code (IaaC), for the particular scenario:
     * Outbound:
         * Internet updates, and integration with external webservices;
 
+## Requirements
+All this objects will be created from scratch.<br>
+The only exisiting AWS objects required are:
+* key pair;
+* S3 bucket containing:
+  * .jar file to be deployed;
+  * .sql script file with data.
+
 ## Custom commands
 Environment initialization:
 ```
@@ -33,7 +43,7 @@ cdk deploy --parameters RdsStack:project={project-name} RdsStack:dbPassword={dat
 * `{project-name}`: put the project name and database name are going to be based on this keyword;
 * `{database-password}`: put database password for the user postgres;
 * `{jars3arn}`: Bucket S3 ARN containing the executable jar;
-* `{sqls3arn}`: Bucket S3 ARN containing the SQL script to generate data;
+* `{sqls3arn}`: Bucket S3 ARN containing the SQL script to generate and populate data in database;
 * `{keypair}`: Existing key pair name without .pem extension;<br>
 
 Uninstall all together:
@@ -48,6 +58,17 @@ will generate:<br>
 * RDS named marques-db, with inner database named marquesdb, for user postgres and password postgres;
 * EC2 named EC2Linux, hosting an executable jar named project.jar;
 
+## JAR Project Prerequisites
+The EC2 stack will generate the environment variables SPRING_DATASOURCE_URL and SPRING_DATASOURCE_PASSWORD, so the Spring Boot project can connect to the database.
+```application.properties
+#application.properties
+
+spring.datasource.url=${SPRING_DATASOURCE_URL}
+spring.datasource.username=postgres
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}
+```
+Using passwords in environment variables is not recomended; it'd rather using some other tool like AWS Secrets Manager SDK inside the project. This case was used for development and testing environments.
+But AWS Secrets Manager SDK can be used to overwrite the password with a secure password in production deployments. 
 
 ## Original SDK reference
 It is a [Maven](https://maven.apache.org/) based project, so you can open this project with any Maven compatible Java IDE to build and run tests.
