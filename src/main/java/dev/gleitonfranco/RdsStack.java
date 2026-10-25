@@ -1,8 +1,8 @@
 package dev.gleitonfranco;
 
 import software.amazon.awscdk.*;
-import software.amazon.awscdk.services.ec2.InstanceType;
 import software.amazon.awscdk.services.ec2.*;
+import software.amazon.awscdk.services.ec2.InstanceType;
 import software.amazon.awscdk.services.rds.*;
 import software.constructs.Construct;
 
@@ -10,12 +10,6 @@ import java.util.List;
 
 
 public class RdsStack extends Stack {
-    private DatabaseInstance database;
-
-
-    public RdsStack(final Construct scope, final String id) {
-        this(scope, id, null, null);
-    }
 
     public RdsStack(final Construct scope, final String id, final StackProps props, final Vpc vpc) {
         super(scope, id, props);
@@ -46,11 +40,11 @@ public class RdsStack extends Stack {
                         .build())
                 .build();
 
-        this.database = DatabaseInstance.Builder
+        final DatabaseInstance database = DatabaseInstance.Builder
                 .create(this, "RdsPg")
                 .instanceIdentifier(projectName + "-db")
                 .engine(DatabaseInstanceEngine.postgres(PostgresInstanceEngineProps.builder()
-                        .version(PostgresEngineVersion.VER_16_4)
+                        .version(PostgresEngineVersion.VER_15_13)
                         .build()))
                 .vpc(vpc)
                 .subnetGroup(subnetGroup)
@@ -74,7 +68,7 @@ public class RdsStack extends Stack {
                 .build();
         CfnOutput.Builder.create(this, "db-endpoint")
                 .exportName("db-endpoint")
-                .value(this.database.getDbInstanceEndpointAddress())
+                .value(database.getDbInstanceEndpointAddress())
                 .build();
         CfnOutput.Builder.create(this, "db-password")
                 .exportName("db-password")
@@ -82,7 +76,4 @@ public class RdsStack extends Stack {
                 .build();
     }
 
-    public DatabaseInstance getDatabase() {
-        return database;
-    }
 }

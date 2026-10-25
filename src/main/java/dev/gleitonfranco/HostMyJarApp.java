@@ -4,8 +4,6 @@ import software.amazon.awscdk.App;
 import software.amazon.awscdk.Environment;
 import software.amazon.awscdk.StackProps;
 
-import java.util.Arrays;
-
 public class HostMyJarApp {
     public static void main(final String[] args) {
         App app = new App();
@@ -34,4 +32,6 @@ public class HostMyJarApp {
 
         app.synth();    }
 }
-
+// COMMAND LINE EXAMPLES:
+// cdk deploy --parameters RdsStack:project=marques2 --parameters RdsStack:dbPassword=postgres --parameters EC2Stack:jars3arn=s3://marquesjars/marques2.jar --parameters EC2Stack:sqls3arn=s3://marquesjars/import.sql --parameters EC2Stack:keypair=marqueskey --require-approval never --all
+// cdk destroy --force --all

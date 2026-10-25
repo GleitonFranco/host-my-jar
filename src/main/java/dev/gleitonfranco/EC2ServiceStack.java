@@ -13,15 +13,10 @@ import java.util.Map;
 
 
 public class EC2ServiceStack extends Stack {
-    private Instance instance;
     private static final String USER = "ec2-user";
     private static final String HOME = "/home/" + USER;
     private static final String TO_RC = ">> " + HOME + "/.bashrc";
 
-
-    public EC2ServiceStack(final Construct scope, final String id) {
-        this(scope, id, null, null, null);
-    }
 
     public EC2ServiceStack(final Construct scope, final String id, StackProps props, Vpc vpc, Role role) {
         super(scope, id, props);
@@ -48,13 +43,13 @@ public class EC2ServiceStack extends Stack {
         final String keyPair = keyPairParam.getValueAsString();
 
         Map<String, String> autenticacao = new HashMap<>();
-        autenticacao.put("SPRING_DATASOURCE_URL", String.format("jdbc:postgres://%s/%s"
+        autenticacao.put("SPRING_DATASOURCE_URL", String.format("jdbc:postgresql://%s:5432/%s"
                 , databaseEndpoint
                 , databaseName));
         autenticacao.put("SPRING_DATASOURCE_USERNAME", "postgres");
         autenticacao.put("SPRING_DATASOURCE_PASSWORD", databasePassword);
 
-        this.instance = Instance.Builder.create(this, "EC2Linux")
+        final Instance instance = Instance.Builder.create(this, "EC2Linux")
                 .vpc(vpc)
                 .instanceType(InstanceType.of(InstanceClass.T2, InstanceSize.MICRO))
                 .machineImage(MachineImage.latestAmazonLinux2023())
@@ -71,31 +66,30 @@ public class EC2ServiceStack extends Stack {
         instance.addUserData("yum install -y java-17-amazon-corretto");
         instance.addUserData("yum install -y awscli-2");
         instance.addUserData("yum install -y postgresql15");
-        instance.addUserData(String.format("aws s3 cp %s %s/project.jar"
-                , jarS3Arn
-                , HOME));
         instance.addUserData(String.format("aws s3 cp %s %s/import.sql", sqlS3Arn, HOME));
-        instance.addUserData(String.format("chown %s %s/marques_create_db.jar", USER, HOME));
+        instance.addUserData(String.format("aws s3 cp %s %s/project.jar", jarS3Arn, HOME));
         instance.addUserData(String.format("chown %s %s/import.sql", USER, HOME));
+        instance.addUserData(String.format("chown %s %s/project.jar", USER, HOME));
         instance.addUserData(this.toRC("export SPRING_DATASOURCE_USERNAME=postgres"));
         instance.addUserData(this.toRC("export SPRING_DATASOURCE_PASSWORD=" + databasePassword));
-        instance.addUserData(this.toRC(String.format("export SPRING_DATASOURCE_URL=jdbc:postgresql://%s/%s"
-                , databaseEndpoint
-                , databaseName)));
+        instance.addUserData(this.toRC("curl -o global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"));
+        instance.addUserData(this.toRC(String.format("export SPRING_DATASOURCE_URL=%s", autenticacao.get("SPRING_DATASOURCE_URL"))));
         instance.addUserData(String.format("source %s/.bashrc", HOME));
-        instance.addUserData(String.format("PGPASSWORD=%s psql -h %s -p 5432 -U postgres -c \"CREATE DATABASE %s;\""
-                , databasePassword
-                , databaseEndpoint
-                , databaseName));
-        instance.addUserData(
-                String.format(
-                        "java -cp %s/project.jar -Dloader.main=br.com.javerde.marques.config.FlywayMigrationRunner org.springframework.boot.loader.PropertiesLauncher", HOME));
-        instance.addUserData(String.format("PGPASSWORD=%s psql -h %s -p 5432 -d %s -U postgres -f %s/import.sql"
-                , databasePassword
-                , databaseEndpoint
-                , databaseName
-                , HOME));
-        instance.addUserData(String.format("java -jar %s/project.jar", HOME));
+        instance.addUserData(String.format(
+                "PGPASSWORD=%s psql \"host=%s port=5432 user=postgres sslmode=verify-full sslrootcert=./global-bundle.pem\" -c \"CREATE DATABASE %s;\"",
+                databasePassword,
+                databaseEndpoint,
+                databaseName));
+        instance.addUserData(String.format(
+                "(SPRING_DATASOURCE_URL=%s sudo -E -u ec2-user java -jar %s/project.jar) &",
+                autenticacao.get("SPRING_DATASOURCE_URL"),
+                HOME));
+        instance.addUserData(String.format(
+                "(sleep 120; PGPASSWORD=%s psql \"host=%s port=5432 user=postgres dbname=%s sslmode=verify-full sslrootcert=./global-bundle.pem\" -f %s/import.sql) &",
+                databasePassword,
+                databaseEndpoint,
+                databaseName,
+                HOME));
     }
 
     private ISecurityGroup createSecurityGroup(IVpc vpc, String projectName) {
@@ -114,7 +108,4 @@ public class EC2ServiceStack extends Stack {
         return "echo '" + command + "' " + TO_RC;
     }
 
-    public Instance getInstance() {
-        return instance;
-    }
 }
